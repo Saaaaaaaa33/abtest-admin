@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AB测试分流配置管理后台</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: #f5f7fa; color: #333; min-height: 100vh; }
+        
+        .layout { display: flex; min-height: 100vh; }
+        
+        .sidebar { width: 200px; background: #2c3e50; color: #fff; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid #34495e; }
+        .sidebar-header h1 { font-size: 16px; font-weight: 600; }
+        .sidebar-menu { flex: 1; padding: 10px; }
+        .sidebar-menu a { display: block; padding: 12px 15px; color: #ecf0f1; text-decoration: none; border-radius: 4px; transition: background 0.3s; margin-bottom: 2px; }
+        .sidebar-menu a:hover, .sidebar-menu a.active { background: #3498db; }
+        
+        .main { flex: 1; display: flex; flex-direction: column; }
+        
+        .main-header { background: #fff; padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; align-items: center; }
+        .main-header h2 { font-size: 16px; font-weight: 600; color: #2c3e50; }
+        
+        .tabs { display: flex; background: #fff; padding: 5px 20px; border-bottom: 1px solid #eee; gap: 5px; }
+        .tab { padding: 10px 20px; background: none; border: none; font-size: 14px; font-weight: 500; cursor: pointer; color: #666; border-radius: 4px; transition: all 0.3s; }
+        .tab:hover { background: #f8f9fa; }
+        .tab.active { background: #3498db; color: #fff; }
+        
+        .content { flex: 1; padding: 20px; overflow-y: auto; }
+        
+        .card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
+        .card-title { font-size: 16px; font-weight: 600; color: #2c3e50; }
+        
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; transition: opacity 0.3s; }
+        .btn-primary { background: #3498db; color: #fff; }
+        .btn-success { background: #2ecc71; color: #fff; }
+        .btn-warning { background: #f39c12; color: #fff; }
+        .btn-danger { background: #e74c3c; color: #fff; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .btn-outline { background: none; border: 1px solid #ddd; color: #666; }
+        
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; font-weight: 600; color: #555; }
+        tr:hover { background: #f8f9fa; }
+        
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; color: #555; }
+        .form-control { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .form-control:focus { outline: none; border-color: #3498db; }
+        
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: #fff; border-radius: 8px; width: 90%; max-width: 700px; max-height: 85vh; overflow-y: auto; }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .modal-title { font-size: 16px; font-weight: 600; }
+        .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #999; }
+        .modal-body { padding: 20px; }
+        .modal-footer { padding: 15px 20px; border-top: 1px solid #eee; text-align: right; }
+        
+        .status-badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 12px; }
+        .status-draft { background: #f5f5f5; color: #999; }
+        .status-running { background: #d4edda; color: #155724; }
+        .status-paused { background: #fff3cd; color: #856404; }
+        .status-ended { background: #f8d7da; color: #721c24; }
+        
+        .search-bar { display: flex; gap: 10px; margin-bottom: 15px; }
+        .search-bar input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        
+        .action-buttons { display: flex; gap: 5px; }
+        
+        .variant-item { border: 1px solid #eee; padding: 15px; margin-bottom: 10px; border-radius: 4px; }
+        .variant-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
+        
+        .json-editor { font-family: monospace; font-size: 13px; min-height: 100px; }
+        
+        .confirm-modal { max-width: 400px; }
+        
+        .group-config { border: 1px solid #e8f4fd; background: #fafcfe; padding: 15px; border-radius: 4px; margin-bottom: 10px; }
+        .group-config label { font-weight: 600; color: #2980b9; }
+        
+        .whitelist-group-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .whitelist-group-row input { width: 100px; }
+        .whitelist-group-row label { flex: 1; margin-bottom: 0; }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>AB测试管理</h1>
+            </div>
+            <div class="sidebar-menu">
+                <a href="#abtest" class="active" onclick="selectModule('abtest')">AB测试管理</a>
+            </div>
+        </div>
+        
+        <div class="main">
+            <div class="main-header">
+                <h2>AB测试管理</h2>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('experiments')">测试管理</button>
+                <button class="tab" onclick="showTab('scenes')">场景管理</button>
+                <button class="tab" onclick="showTab('whitelist')">白名单管理</button>
+            </div>
+            
+            <div class="content">
+                <div id="experiments" class="tab-content">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">测试列表</div>
+                            <button class="btn btn-primary" onclick="showCreateExperiment()">新建测试</button>
+                        </div>
+                        <div class="search-bar">
+                            <input type="text" placeholder="搜索测试名称..." id="exp-search">
+                            <select id="exp-status-filter" class="form-control" style="width: auto;">
+                                <option value="">全部状态</option>
+                                <option value="draft">草稿</option>
+                                <option value="running">运行中</option>
+                                <option value="paused">已暂停</option>
+                                <option value="ended">已结束</option>
+                            </select>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>测试ID</th>
+                                    <th>测试名称</th>
+                                    <th>场景类型</th>
+                                    <th>状态</th>
+                                    <th>测试组数</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="exp-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="scenes" class="tab-content" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">场景类型列表</div>
+                            <button class="btn btn-primary" onclick="showCreateScene()">新建场景类型</button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr><th>场景类型名称</th><th>页面地址</th><th>操作</th></tr>
+                            </thead>
+                            <tbody id="scene-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="whitelist" class="tab-content" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">白名单管理</div>
+                            <button class="btn btn-primary" onclick="showAddWhitelist()">添加白名单</button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr><th>用户手机号码</th><th>测试ID</th><th>开始时间</th><th>结束时间</th><th>操作</th></tr>
+                            </thead>
+                            <tbody id="whitelist-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal-overlay" id="modal-create-exp">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title" id="exp-modal-title">新建测试</div>
+                <button class="modal-close" onclick="closeModal('modal-create-exp')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="exp-edit-id">
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>测试ID</label>
+                        <input type="text" id="exp-id" class="form-control" readonly placeholder="自动生成">
+                    </div>
+                    <div class="form-group">
+                        <label>测试名称 *</label>
+                        <input type="text" id="exp-name" class="form-control" placeholder="输入测试名称">
+                    </div>
+                    <div class="form-group">
+                        <label>场景类型 *</label>
+                        <select id="exp-scene-type" class="form-control">
+                            <option value="">请选择场景类型</option>
+                            <option value="portal_package">portal制作包</option>
+                            <option value="portal_ringtone">portal铃音盒</option>
+                            <option value="portal_switch">portal任换包</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>状态</label>
+                        <select id="exp-status" class="form-control">
+                            <option value="0">草稿</option>
+                            <option value="1">运行中</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>开始时间</label>
+                        <input type="datetime-local" id="exp-start-time" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>结束时间</label>
+                        <input type="datetime-local" id="exp-end-time" class="form-control">
+                    </div>
+                </div>
+                
+                <div style="border-top: 1px solid #eee; padding-top: 15px; margin-top: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <span style="font-weight: 600;">测试组配置</span>
+                        <button class="btn btn-sm btn-primary" onclick="addTestGroup()">添加测试组</button>
+                    </div>
+                    <div id="groups-container">
+                        <div class="group-config">
+                            <div class="variant-header">
+                                <span style="font-weight: 600;">对照组</span>
+                            </div>
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>测试组名称</label>
+                                    <input type="text" class="form-control group-name" value="对照组" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label>流量权重 (%)</label>
+                                    <input type="number" class="form-control group-weight" value="50" min="0" max="100">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="group-config">
+                            <div class="variant-header">
+                                <span style="font-weight: 600;">测试组A</span>
+                            </div>
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>测试组名称</label>
+                                    <input type="text" class="form-control group-name" value="测试组A">
+                                </div>
+                                <div class="form-group">
+                                    <label>流量权重 (%)</label>
+                                    <input type="number" class="form-control group-weight" value="50" min="0" max="100">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('modal-create-exp')">取消</button>
+                <button class="btn btn-primary" onclick="saveExperiment()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal-overlay" id="modal-create-scene">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title" id="scene-modal-title">新建场景类型</div>
+                <button class="modal-close" onclick="closeModal('modal-create-scene')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="scene-edit-id">
+                <div class="form-group">
+                    <label>场景类型名称 *</label>
+                    <input type="text" id="scene-name" class="form-control" placeholder="输入场景类型名称">
+                </div>
+                <div class="form-group">
+                    <label>页面地址 *</label>
+                    <input type="text" id="scene-url" class="form-control" placeholder="输入页面URL地址">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('modal-create-scene')">取消</button>
+                <button class="btn btn-primary" onclick="saveScene()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal-overlay" id="modal-add-whitelist">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title" id="wl-modal-title">添加白名单</div>
+                <button class="modal-close" onclick="closeModal('modal-add-whitelist')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="wl-edit-id">
+                <div class="form-group">
+                    <label>用户手机号码 *</label>
+                    <input type="text" id="wl-phone" class="form-control" placeholder="请输入手机号码">
+                </div>
+                <div class="form-group">
+                    <label>测试ID *</label>
+                    <select id="wl-test-id" class="form-control" onchange="loadTestGroupsForWhitelist()">
+                        <option value="">请选择测试ID</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>开始时间 *</label>
+                    <input type="datetime-local" id="wl-start-time" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>结束时间</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="datetime-local" id="wl-end-time" class="form-control" style="flex: 1;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="wl-permanent"> 永久
+                        </label>
+                    </div>
+                </div>
+                <div style="border-top: 1px solid #eee; padding-top: 15px; margin-top: 15px;">
+                    <div style="font-weight: 600; margin-bottom: 15px;">测试组概率配置</div>
+                    <div id="wl-groups-container">
+                        <div style="color: #999; text-align: center; padding: 20px;">请先选择测试ID</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('modal-add-whitelist')">取消</button>
+                <button class="btn btn-primary" onclick="saveWhitelist()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal-overlay" id="modal-confirm">
+        <div class="modal confirm-modal">
+            <div class="modal-header">
+                <div class="modal-title">确认操作</div>
+                <button class="modal-close" onclick="closeModal('modal-confirm')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-message">确认执行此操作？</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('modal-confirm')">取消</button>
+                <button class="btn btn-danger" onclick="confirmAction()">确认</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let testIdCounter = 10;
+        
+        const mockExperiments = [
+            { testId: 'test01', testName: '营销页首屏布局测试', sceneType: 'portal_package', status: 1, groups: [{ name: '对照组', weight: 50 }, { name: '测试组A', weight: 50 }], startTime: '2024-01-15T00:00', endTime: '2024-12-31T23:59' },
+            { testId: 'test02', testName: 'H5活动按钮文案测试', sceneType: 'portal_ringtone', status: 1, groups: [{ name: '对照组', weight: 30 }, { name: '测试组A', weight: 40 }, { name: '测试组B', weight: 30 }], startTime: '2024-01-14T00:00', endTime: '2024-06-30T23:59' },
+            { testId: 'test03', testName: '首页Banner测试', sceneType: 'portal_switch', status: 2, groups: [{ name: '对照组', weight: 50 }, { name: '测试组A', weight: 50 }], startTime: '2024-01-10T00:00', endTime: '2024-03-31T23:59' },
+            { testId: 'test04', testName: '商品详情页价格展示', sceneType: 'portal_package', status: 0, groups: [{ name: '对照组', weight: 50 }, { name: '测试组A', weight: 50 }], startTime: '2024-02-01T00:00', endTime: '2024-05-31T23:59' },
+            { testId: 'test05', testName: '注册流程优化测试', sceneType: 'portal_ringtone', status: 3, groups: [{ name: '对照组', weight: 50 }, { name: '测试组A', weight: 50 }], startTime: '2023-11-01T00:00', endTime: '2023-12-31T23:59' },
+        ];
+        
+        const mockScenes = [
+            { id: 1, sceneName: 'portal制作包', url: 'https://example.com/portal/package' },
+            { id: 2, sceneName: 'portal铃音盒', url: 'https://example.com/portal/ringtone' },
+            { id: 3, sceneName: 'portal任换包', url: 'https://example.com/portal/switch' },
+        ];
+        
+        const mockWhitelists = [
+            { id: 1, phone: '13800138001', testId: 'test01', startTime: '2024-01-01T00:00', endTime: null, isPermanent: true, groupProbabilities: { '对照组': 100 } },
+            { id: 2, phone: '13800138002', testId: 'test02', startTime: '2024-01-01T00:00', endTime: '2024-12-31T23:59', isPermanent: false, groupProbabilities: { '测试组A': 100 } },
+        ];
+        
+        function getSceneTypeName(type) {
+            const map = { 'portal_package': 'portal制作包', 'portal_ringtone': 'portal铃音盒', 'portal_switch': 'portal任换包' };
+            return map[type] || type;
+        }
+        
+        function getStatusBadge(status) {
+            const map = { 0: { cls: 'status-draft', text: '草稿' }, 1: { cls: 'status-running', text: '运行中' }, 2: { cls: 'status-paused', text: '已暂停' }, 3: { cls: 'status-ended', text: '已结束' } };
+            const s = map[status] || map[0];
+            return `<span class="status-badge ${s.cls}">${s.text}</span>`;
+        }
+        
+        function selectModule(moduleId) {
+            document.querySelectorAll('.sidebar-menu a').forEach(a => a.classList.remove('active'));
+            document.querySelector(`a[href="#${moduleId}"]`).classList.add('active');
+        }
+        
+        function showTab(tabId) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`button[onclick="showTab('${tabId}')"]`).classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+            document.getElementById(tabId).style.display = 'block';
+            
+            if (tabId === 'experiments') {
+                renderExperiments();
+            } else if (tabId === 'scenes') {
+                renderScenes();
+            } else if (tabId === 'whitelist') {
+                renderWhitelists();
+            }
+        }
+        
+        function renderExperiments() {
+            const tbody = document.getElementById('exp-table-body');
+            tbody.innerHTML = mockExperiments.map(exp => `
+                <tr>
+                    <td>${exp.testId}</td>
+                    <td>${exp.testName}</td>
+                    <td>${getSceneTypeName(exp.sceneType)}</td>
+                    <td>${getStatusBadge(exp.status)}</td>
+                    <td>${exp.groups.length}</td>
+                    <td class="action-buttons">
+                        <button class="btn btn-sm" style="background: #3498db; color: white;" onclick="editExperiment('${exp.testId}')">编辑</button>
+                        ${exp.status === 1 ? `<button class="btn btn-sm btn-warning" onclick="confirmPause('${exp.testId}')">暂停</button>` : ''}
+                        ${exp.status === 0 || exp.status === 2 ? `<button class="btn btn-sm btn-success" onclick="startExperiment('${exp.testId}')">启动</button>` : ''}
+                        <button class="btn btn-sm btn-danger" onclick="deleteExperiment('${exp.testId}')">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function renderScenes() {
+            const tbody = document.getElementById('scene-table-body');
+            tbody.innerHTML = mockScenes.map(scene => `
+                <tr>
+                    <td>${scene.sceneName}</td>
+                    <td>${scene.url}</td>
+                    <td class="action-buttons">
+                        <button class="btn btn-sm btn-warning" onclick="editScene(${scene.id})">编辑</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteScene(${scene.id})">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function renderWhitelists() {
+            const tbody = document.getElementById('whitelist-table-body');
+            tbody.innerHTML = mockWhitelists.map(wl => `
+                <tr>
+                    <td>${wl.phone}</td>
+                    <td>${wl.testId}</td>
+                    <td>${wl.startTime.split('T')[0]} ${wl.startTime.split('T')[1]}</td>
+                    <td>${wl.isPermanent ? '永久' : wl.endTime.split('T')[0] + ' ' + wl.endTime.split('T')[1]}</td>
+                    <td class="action-buttons">
+                        <button class="btn btn-sm btn-warning" onclick="editWhitelist(${wl.id})">编辑</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteWhitelist(${wl.id})">删除</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        function showModal(modalId) {
+            document.getElementById(modalId).classList.add('show');
+        }
+        
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+        }
+        
+        function showCreateExperiment() {
+            document.getElementById('exp-modal-title').textContent = '新建测试';
+            document.getElementById('exp-edit-id').value = '';
+            document.getElementById('exp-id').value = '';
+            document.getElementById('exp-name').value = '';
+            document.getElementById('exp-scene-type').value = '';
+            document.getElementById('exp-status').value = '0';
+            document.getElementById('exp-start-time').value = '';
+            document.getElementById('exp-end-time').value = '';
+            
+            document.getElementById('groups-container').innerHTML = `
+                <div class="group-config">
+                    <div class="variant-header">
+                        <span style="font-weight: 600;">对照组</span>
+                    </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>测试组名称</label>
+                            <input type="text" class="form-control group-name" value="对照组" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>流量权重 (%)</label>
+                            <input type="number" class="form-control group-weight" value="50" min="0" max="100">
+                        </div>
+                    </div>
+                </div>
+                <div class="group-config">
+                    <div class="variant-header">
+                        <span style="font-weight: 600;">测试组A</span>
+                    </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>测试组名称</label>
+                            <input type="text" class="form-control group-name" value="测试组A">
+                        </div>
+                        <div class="form-group">
+                            <label>流量权重 (%)</label>
+                            <input type="number" class="form-control group-weight" value="50" min="0" max="100">
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            showModal('modal-create-exp');
+        }
+        
+        function editExperiment(testId) {
+            const exp = mockExperiments.find(e => e.testId === testId);
+            if (!exp) return;
+            
+            document.getElementById('exp-modal-title').textContent = '编辑测试';
+            document.getElementById('exp-edit-id').value = testId;
+            document.getElementById('exp-id').value = exp.testId;
+            document.getElementById('exp-name').value = exp.testName;
+            document.getElementById('exp-scene-type').value = exp.sceneType;
+            document.getElementById('exp-status').value = exp.status;
+            document.getElementById('exp-start-time').value = exp.startTime;
+            document.getElementById('exp-end-time').value = exp.endTime;
+            
+            let groupsHtml = '';
+            exp.groups.forEach((group, index) => {
+                const isControl = index === 0;
+                groupsHtml += `
+                    <div class="group-config">
+                        <div class="variant-header">
+                            <span style="font-weight: 600;">${isControl ? '对照组' : group.name}</span>
+                            ${!isControl ? '<button class="btn btn-sm btn-danger" onclick="removeTestGroup(this)">删除</button>' : ''}
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>测试组名称</label>
+                                <input type="text" class="form-control group-name" value="${group.name}" ${isControl ? 'readonly' : ''}>
+                            </div>
+                            <div class="form-group">
+                                <label>流量权重 (%)</label>
+                                <input type="number" class="form-control group-weight" value="${group.weight}" min="0" max="100">
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('groups-container').innerHTML = groupsHtml;
+            
+            showModal('modal-create-exp');
+        }
+        
+        function addTestGroup() {
+            const container = document.getElementById('groups-container');
+            const count = container.querySelectorAll('.group-config').length;
+            const groupNames = ['对照组', '测试组A', '测试组B', '测试组C', '测试组D'];
+            const name = groupNames[count] || `测试组${String.fromCharCode(65 + count - 1)}`;
+            
+            container.innerHTML += `
+                <div class="group-config">
+                    <div class="variant-header">
+                        <span style="font-weight: 600;">${name}</span>
+                        <button class="btn btn-sm btn-danger" onclick="removeTestGroup(this)">删除</button>
+                    </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>测试组名称</label>
+                            <input type="text" class="form-control group-name" value="${name}">
+                        </div>
+                        <div class="form-group">
+                            <label>流量权重 (%)</label>
+                            <input type="number" class="form-control group-weight" value="0" min="0" max="100">
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function removeTestGroup(el) {
+            const container = document.getElementById('groups-container');
+            if (container.querySelectorAll('.group-config').length <= 2) {
+                alert('至少需要保留对照组和一个测试组');
+                return;
+            }
+            el.closest('.group-config').remove();
+        }
+        
+        function saveExperiment() {
+            const editId = document.getElementById('exp-edit-id').value;
+            const groups = [];
+            document.querySelectorAll('#groups-container .group-config').forEach((groupEl, index) => {
+                groups.push({
+                    name: groupEl.querySelector('.group-name').value,
+                    weight: parseInt(groupEl.querySelector('.group-weight').value) || 0
+                });
+            });
+            
+            if (editId) {
+                const index = mockExperiments.findIndex(e => e.testId === editId);
+                if (index !== -1) {
+                    mockExperiments[index] = {
+                        ...mockExperiments[index],
+                        testName: document.getElementById('exp-name').value,
+                        sceneType: document.getElementById('exp-scene-type').value,
+                        status: parseInt(document.getElementById('exp-status').value),
+                        groups: groups,
+                        startTime: document.getElementById('exp-start-time').value,
+                        endTime: document.getElementById('exp-end-time').value
+                    };
+                }
+                alert('测试更新成功！');
+            } else {
+                testIdCounter++;
+                const newTestId = 'test' + String(testIdCounter).padStart(2, '0');
+                mockExperiments.push({
+                    testId: newTestId,
+                    testName: document.getElementById('exp-name').value,
+                    sceneType: document.getElementById('exp-scene-type').value,
+                    status: parseInt(document.getElementById('exp-status').value),
+                    groups: groups,
+                    startTime: document.getElementById('exp-start-time').value,
+                    endTime: document.getElementById('exp-end-time').value
+                });
+                alert('测试创建成功！测试ID: ' + newTestId);
+            }
+            
+            closeModal('modal-create-exp');
+            renderExperiments();
+            updateWhitelistTestOptions();
+        }
+        
+        function confirmPause(testId) {
+            document.getElementById('confirm-message').textContent = '确认暂停该测试？暂停后系统将默认100%流量分配至对照组';
+            window.pendingAction = () => pauseExperiment(testId);
+            showModal('modal-confirm');
+        }
+        
+        function confirmAction() {
+            if (window.pendingAction) {
+                window.pendingAction();
+            }
+            closeModal('modal-confirm');
+            window.pendingAction = null;
+        }
+        
+        function pauseExperiment(testId) {
+            const exp = mockExperiments.find(e => e.testId === testId);
+            if (exp) {
+                exp.status = 2;
+                exp.groups[0].weight = 100;
+                exp.groups.slice(1).forEach(g => g.weight = 0);
+            }
+            renderExperiments();
+        }
+        
+        function startExperiment(testId) {
+            const exp = mockExperiments.find(e => e.testId === testId);
+            if (exp) {
+                exp.status = 1;
+            }
+            renderExperiments();
+        }
+        
+        function deleteExperiment(testId) {
+            if (confirm(`确定删除测试 ${testId} 吗？`)) {
+                const index = mockExperiments.findIndex(e => e.testId === testId);
+                if (index !== -1) {
+                    mockExperiments.splice(index, 1);
+                }
+                renderExperiments();
+                updateWhitelistTestOptions();
+            }
+        }
+        
+        function showCreateScene() {
+            document.getElementById('scene-modal-title').textContent = '新建场景类型';
+            document.getElementById('scene-edit-id').value = '';
+            document.getElementById('scene-name').value = '';
+            document.getElementById('scene-url').value = '';
+            showModal('modal-create-scene');
+        }
+        
+        function editScene(id) {
+            const scene = mockScenes.find(s => s.id === id);
+            if (!scene) return;
+            
+            document.getElementById('scene-modal-title').textContent = '编辑场景类型';
+            document.getElementById('scene-edit-id').value = id;
+            document.getElementById('scene-name').value = scene.sceneName;
+            document.getElementById('scene-url').value = scene.url;
+            showModal('modal-create-scene');
+        }
+        
+        function saveScene() {
+            const editId = document.getElementById('scene-edit-id').value;
+            const name = document.getElementById('scene-name').value;
+            const url = document.getElementById('scene-url').value;
+            
+            if (!name || !url) {
+                alert('请填写完整信息');
+                return;
+            }
+            
+            if (editId) {
+                const index = mockScenes.findIndex(s => s.id === parseInt(editId));
+                if (index !== -1) {
+                    mockScenes[index] = { ...mockScenes[index], sceneName: name, url: url };
+                }
+                alert('场景类型更新成功！');
+            } else {
+                mockScenes.push({
+                    id: Date.now(),
+                    sceneName: name,
+                    url: url
+                });
+                alert('场景类型创建成功！');
+            }
+            
+            closeModal('modal-create-scene');
+            renderScenes();
+        }
+        
+        function deleteScene(id) {
+            if (confirm('确定删除该场景类型吗？')) {
+                const index = mockScenes.findIndex(s => s.id === id);
+                if (index !== -1) {
+                    mockScenes.splice(index, 1);
+                }
+                renderScenes();
+            }
+        }
+        
+        function updateWhitelistTestOptions() {
+            const select = document.getElementById('wl-test-id');
+            select.innerHTML = '<option value="">请选择测试ID</option>' + 
+                mockExperiments.filter(e => e.status === 1).map(e => 
+                    `<option value="${e.testId}">${e.testId} - ${e.testName}</option>`
+                ).join('');
+        }
+        
+        function showAddWhitelist() {
+            document.getElementById('wl-modal-title').textContent = '添加白名单';
+            document.getElementById('wl-edit-id').value = '';
+            document.getElementById('wl-phone').value = '';
+            document.getElementById('wl-test-id').value = '';
+            document.getElementById('wl-start-time').value = '';
+            document.getElementById('wl-end-time').value = '';
+            document.getElementById('wl-permanent').checked = false;
+            document.getElementById('wl-groups-container').innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">请先选择测试ID</div>';
+            
+            updateWhitelistTestOptions();
+            showModal('modal-add-whitelist');
+        }
+        
+        function editWhitelist(id) {
+            const wl = mockWhitelists.find(w => w.id === id);
+            if (!wl) return;
+            
+            document.getElementById('wl-modal-title').textContent = '编辑白名单';
+            document.getElementById('wl-edit-id').value = id;
+            document.getElementById('wl-phone').value = wl.phone;
+            document.getElementById('wl-test-id').value = wl.testId;
+            document.getElementById('wl-start-time').value = wl.startTime;
+            document.getElementById('wl-end-time').value = wl.endTime || '';
+            document.getElementById('wl-permanent').checked = wl.isPermanent;
+            
+            updateWhitelistTestOptions();
+            loadTestGroupsForWhitelist();
+            
+            showModal('modal-add-whitelist');
+        }
+        
+        function loadTestGroupsForWhitelist() {
+            const testId = document.getElementById('wl-test-id').value;
+            const container = document.getElementById('wl-groups-container');
+            
+            if (!testId) {
+                container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">请先选择测试ID</div>';
+                return;
+            }
+            
+            const exp = mockExperiments.find(e => e.testId === testId);
+            if (!exp) {
+                container.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">未找到测试组信息</div>';
+                return;
+            }
+            
+            const editId = document.getElementById('wl-edit-id').value;
+            const wl = editId ? mockWhitelists.find(w => w.id === parseInt(editId)) : null;
+            
+            let html = '';
+            exp.groups.forEach(group => {
+                const prob = wl?.groupProbabilities?.[group.name] || 0;
+                html += `
+                    <div class="whitelist-group-row">
+                        <label>${group.name}</label>
+                        <input type="number" class="form-control wl-group-prob" data-group="${group.name}" value="${prob}" min="0" max="100">
+                        <span>%</span>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+        
+        function saveWhitelist() {
+            const phone = document.getElementById('wl-phone').value;
+            const testId = document.getElementById('wl-test-id').value;
+            const startTime = document.getElementById('wl-start-time').value;
+            const isPermanent = document.getElementById('wl-permanent').checked;
+            const endTime = isPermanent ? null : document.getElementById('wl-end-time').value;
+            
+            if (!phone || !testId || !startTime) {
+                alert('请填写完整信息');
+                return;
+            }
+            
+            if (!/^1[3-9]\d{9}$/.test(phone)) {
+                alert('请输入正确的手机号码');
+                return;
+            }
+            
+            const groupProbabilities = {};
+            document.querySelectorAll('.wl-group-prob').forEach(input => {
+                groupProbabilities[input.dataset.group] = parseInt(input.value) || 0;
+            });
+            
+            const editId = document.getElementById('wl-edit-id').value;
+            if (editId) {
+                const index = mockWhitelists.findIndex(w => w.id === parseInt(editId));
+                if (index !== -1) {
+                    mockWhitelists[index] = {
+                        ...mockWhitelists[index],
+                        phone: phone,
+                        testId: testId,
+                        startTime: startTime,
+                        endTime: endTime,
+                        isPermanent: isPermanent,
+                        groupProbabilities: groupProbabilities
+                    };
+                }
+                alert('白名单更新成功！');
+            } else {
+                mockWhitelists.push({
+                    id: Date.now(),
+                    phone: phone,
+                    testId: testId,
+                    startTime: startTime,
+                    endTime: endTime,
+                    isPermanent: isPermanent,
+                    groupProbabilities: groupProbabilities
+                });
+                alert('白名单添加成功！');
+            }
+            
+            closeModal('modal-add-whitelist');
+            renderWhitelists();
+        }
+        
+        function deleteWhitelist(id) {
+            if (confirm('确定删除该白名单吗？')) {
+                const index = mockWhitelists.findIndex(w => w.id === id);
+                if (index !== -1) {
+                    mockWhitelists.splice(index, 1);
+                }
+                renderWhitelists();
+            }
+        }
+        
+        document.getElementById('wl-permanent').addEventListener('change', function() {
+            document.getElementById('wl-end-time').disabled = this.checked;
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                e.target.classList.remove('show');
+            }
+        });
+        
+        testIdCounter = Math.max(testIdCounter, ...mockExperiments.map(e => parseInt(e.testId.replace('test', ''))));
+        showTab('experiments');
+    </script>
+</body>
+</html>
